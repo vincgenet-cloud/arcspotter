@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f6b47">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+<title>ArcSpotter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout : onglets Tir / Séances. Tir = un écran sans défilement (score, blason, bouton photo), réglages sous la ligne de flottaison. Séances = historique + export PDF */
+:root{
+  --bg:#f3f4ee; --surface:#ffffff; --ink:#18201b; --muted:#5d6a61; --line:#d9ddd2;
+  --accent:#1f6b47; --accent-ink:#ffffff; --comp:#a8361f; --comp-ink:#ffffff; --warn:#b5541c; --mark:#d10f5a;
+  --f-display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --tabs-h:44px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111613; --surface:#1a211c; --ink:#e8ede7; --muted:#9aa79e; --line:#2d3830;
+  --accent:#46b07c; --accent-ink:#0c1410; --comp:#ef8a62; --comp-ink:#1a0d08; --warn:#e58a4f; --mark:#ff4d8f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111613; --surface:#1a211c; --ink:#e8ede7; --muted:#9aa79e; --line:#2d3830;
+  --accent:#46b07c; --accent-ink:#0c1410; --comp:#ef8a62; --comp-ink:#1a0d08; --warn:#e58a4f; --mark:#ff4d8f; color-scheme:dark}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.4}
+.is-comp{--mode:var(--comp);--mode-ink:var(--comp-ink)}
+body:not(.is-comp){--mode:var(--accent);--mode-ink:var(--accent-ink)}
+
+/* onglets */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);height:var(--tabs-h);box-sizing:border-box;
+  max-width:560px;margin:0 auto;padding-inline:12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line)}
+.tab{font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:.04em;text-transform:uppercase;background:none;border:0;
+  color:var(--muted);padding:8px 10px;border-radius:0;border-bottom:3px solid transparent;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--mode)}
+.tab .count{font-family:var(--f-body);font-size:12px;font-weight:600;color:var(--muted);margin-left:3px}
+.modechip{margin-left:auto;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:4px 8px;border-radius:99px;
+  background:var(--mode);color:var(--mode-ink);white-space:nowrap;border:0;cursor:pointer}
+
+/* écran de tir */
+.app{max-width:560px;margin:0 auto;padding-inline:12px;padding-block:6px 10px;display:flex;flex-direction:column;gap:7px;
+  height:calc(100vh - var(--tabs-h) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+  height:calc(100dvh - var(--tabs-h) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));min-height:430px;box-sizing:border-box}
+.more{max-width:560px;margin:0 auto;padding-inline:12px;padding-block:6px 40px;display:flex;flex-direction:column;gap:12px}
+.scorebar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.end-label{font-family:var(--f-display);font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:3px;white-space:nowrap}
+.chips{display:flex;gap:4px;flex-wrap:nowrap}
+.chip{font-family:var(--f-display);font-weight:700;font-size:17px;width:30px;height:30px;flex-shrink:0;border-radius:50%;display:grid;place-items:center;border:2.5px solid var(--line);font-variant-numeric:tabular-nums}
+.chip.empty{color:var(--line)}
+.totals{text-align:right;flex-shrink:0}
+.total{font-family:var(--f-display);font-weight:700;font-size:44px;font-variant-numeric:tabular-nums;line-height:.9}
+.cumul{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cumul b{color:var(--ink);font-family:var(--f-display);font-size:16px}
+.stage{flex:1;min-height:0;display:grid;place-items:center;position:relative}
+.live{position:absolute;top:0;right:0;width:30%;max-width:150px;border-radius:8px;overflow:hidden;border:2px solid var(--mode);background:#000}
+.live video{display:block;width:100%;height:auto}
+.live .rec{position:absolute;top:5px;left:5px;width:9px;height:9px;border-radius:50%;background:#e0302a}
+body.auto-on .live .rec{animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.2}}
+#tgt{display:block;touch-action:manipulation;cursor:crosshair}
+.group{font-size:12px;color:var(--muted);text-align:center;min-height:1.3em;margin-top:-4px}
+.group b{color:var(--mark)}
+.status{font-size:14px;padding:7px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);min-height:1.4em}
+.status.err{border-color:var(--warn);color:var(--warn)}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+button,.filebtn{font:inherit;font-weight:600;font-size:14px;padding:10px 4px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:center}
+.primary{grid-column:1/-1;background:var(--mode);color:var(--mode-ink);border-color:var(--mode);font-size:18px;padding:16px;font-family:var(--f-display);letter-spacing:.04em;text-transform:uppercase}
+button:focus-visible,.filebtn:focus-within,.tab:focus-visible{outline:3px solid var(--mark);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+.scroll-hint{text-align:center;font-size:12px;color:var(--muted)}
+
+/* panneaux */
+h2{font-family:var(--f-display);font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;min-width:0}
+.field.wide{grid-column:1/-1}
+select,input[type=text],textarea{font:inherit;font-size:15px;padding:8px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink);text-transform:none;letter-spacing:0;min-width:0}
+textarea{resize:vertical;min-height:64px}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:11px 6px;background:var(--bg);color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--mode);color:var(--mode-ink)}
+.seg button + button{border-left:1px solid var(--line)}
+.photo{width:100%;border-radius:8px;display:block}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.hint.warn{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
+td.n,th.n{text-align:right}
+td.n{font-family:var(--f-display);font-size:17px;font-weight:700}
+.advice{font-size:14px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:20px}
+.brand span{color:var(--accent)}
+
+/* séances */
+.sess{max-width:560px;margin:0 auto;padding-inline:12px;padding-block:12px 40px;display:flex;flex-direction:column;gap:10px}
+.sess-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.filters button{padding:6px 12px;font-size:13px;border-radius:99px}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.card{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);width:100%;box-sizing:border-box}
+.card .t{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .meta{font-size:12px;color:var(--muted);font-weight:400;grid-column:1}
+.card .score{grid-row:1/span 2;grid-column:2;text-align:right;font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.card .score small{display:block;font-family:var(--f-body);font-size:11px;color:var(--muted);font-weight:500}
+.badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 6px;border-radius:4px;margin-right:6px;vertical-align:1px}
+.badge.train{background:var(--accent);color:var(--accent-ink)}
+.badge.comp{background:var(--comp);color:var(--comp-ink)}
+.empty-state{text-align:center;padding:30px 16px;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stat b{display:block;font-family:var(--f-display);font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+#detTgt{width:min(100%,320px);aspect-ratio:1;align-self:center;display:block}
+.row-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn-main{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.danger{color:var(--warn)}
+.back{align-self:flex-start;padding:6px 10px;font-size:13px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:14px;max-width:calc(100% - 48px);z-index:20}
+
+/* feuille d'enregistrement */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+.sheet{background:var(--surface);color:var(--ink);width:100%;max-width:560px;border-radius:14px 14px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;box-sizing:border-box}
+.sheet h3{margin:0;font-family:var(--f-display);font-size:22px}
+.sheet .big{font-family:var(--f-display);font-weight:700;font-size:40px;line-height:1}
+@media (prefers-reduced-motion:no-preference){.chip.new{animation:pop .35s ease-out}@keyframes pop{from{transform:scale(1.5)}to{transform:none}}}
+</style>
+
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" id="tabTir" aria-selected="true" type="button">Tir</button>
+  <button class="tab" role="tab" id="tabSess" aria-selected="false" type="button">Séances<span class="count" id="sessCount"></span></button>
+  <button class="modechip" id="modeChip" type="button" title="Changer de mode dans les réglages">Entraînement</button>
+</nav>
+
+<div id="viewTir">
+<div class="app">
+  <div class="scorebar">
+    <div>
+      <div class="end-label" id="endLabel">Volée 1</div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="totals">
+      <div class="total" id="endTotal">0</div>
+      <div class="cumul" id="cumul">cumul <b>0</b></div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="tgt" width="800" height="800" aria-label="Blason virtuel : touche pour ajouter ou retirer une flèche"></canvas>
+    <div class="live" id="liveBox" hidden><video id="live" playsinline muted></video><span class="rec"></span></div>
+  </div>
+  <div class="group" id="group"></div>
+
+  <div class="status" id="status">Fixe le téléphone face au blason, puis appuie sur « Démarrer la volée ».</div>
+
+  <div class="actions">
+    <label class="filebtn primary" id="mainBtn" for="cam"><span id="mainTxt">Photo du blason vide</span>
+      <input id="cam" type="file" accept="image/*" capture="environment">
+    </label>
+    <button id="demo" type="button">Démo</button>
+    <button id="undo" type="button">Annuler</button>
+    <button id="nextEnd" type="button">Volée suiv.</button>
+    <button id="finish" type="button">Terminer</button>
+  </div>
+</div>
+
+<div class="more">
+  <div class="scroll-hint">Feuille de marque et réglages ↓</div>
+
+  <section class="panel">
+    <h2>Feuille de marque</h2>
+    <table><thead><tr><th>Volée</th><th>Flèches</th><th class="n">Total</th><th class="n">Cumul</th></tr></thead><tbody id="sheet"></tbody></table>
+    <div class="advice" id="advice"></div>
+  </section>
+
+  <section class="panel" id="photoPanel" hidden>
+    <h2>Dernière analyse</h2>
+    <canvas id="photo" class="photo" aria-label="Zone détectée"></canvas>
+    <p class="hint">Contour : blason repéré. Croix : centre corrigé. Rond : flèche détectée.</p>
+  </section>
+
+  <section class="panel" id="settings">
+    <h2>Réglages</h2>
+    <div class="seg" role="group" aria-label="Mode">
+      <button type="button" id="mTrain" aria-pressed="true">Entraînement</button>
+      <button type="button" id="mComp" aria-pressed="false">Compétition</button>
+    </div>
+    <div class="field">Capture
+      <div class="seg" role="group" aria-label="Capture">
+        <button type="button" id="cAuto" aria-pressed="true">Auto (caméra)</button>
+        <button type="button" id="cPhoto" aria-pressed="false">Photo</button>
+      </div>
+    </div>
+    <p class="hint" id="capInfo"></p>
+    <p class="hint warn" id="modeWarn" hidden>Une séance est en cours. Termine-la ou efface-la avant de changer de mode ou de format.</p>
+
+    <div class="grid2" id="trainSet">
+      <label class="field" for="dist">Distance
+        <select id="dist"><option>18</option><option>20</option><option>25</option><option>30</option><option>40</option><option>50</option><option>60</option><option>70</option><option>90</option></select>
+      </label>
+      <label class="field" for="face">Blason
+        <select id="face">
+          <option value="400">40 cm</option>
+          <option value="600">60 cm</option>
+          <option value="800">80 cm</option>
+          <option value="1220">122 cm</option>
+        </select>
+      </label>
+      <label class="field" for="perEnd">Flèches / volée
+        <select id="perEnd"><option>3</option><option selected>6</option></select>
+      </label>
+    </div>
+
+    <div class="grid2" id="compSet" hidden>
+      <label class="field wide" for="fmt">Format
+        <select id="fmt"></select>
+      </label>
+      <label class="field wide" for="compName">Nom de la compétition
+        <input type="text" id="compName" placeholder="ex. Concours salle de Saint-André" maxlength="80">
+      </label>
+    </div>
+    <p class="hint" id="fmtInfo"></p>
+
+    <button id="reset" type="button" class="danger">Effacer la séance en cours</button>
+    <p class="hint">Touche le blason pour ajouter une flèche à la main, touche une flèche pour la retirer.</p>
+    <p class="hint">Photos : téléphone fixé sur la longue-vue ou un trépied, blason entier dans le cadre, même zoom pour toutes les photos. Une photo du blason vide au début de chaque volée, puis une photo après chaque flèche.</p>
+    <div class="brand">Arc<span>Spotter</span> <span class="hint" style="font-family:var(--f-body);font-weight:400">version autonome</span></div>
+  </section>
+</div>
+</div>
+
+<div id="viewSess" hidden>
+  <div class="sess" id="sessList">
+    <div class="sess-head">
+      <div class="filters" role="group" aria-label="Filtrer">
+        <button type="button" data-f="all" aria-pressed="true">Toutes</button>
+        <button type="button" data-f="train" aria-pressed="false">Entraînement</button>
+        <button type="button" data-f="comp" aria-pressed="false">Compétition</button>
+      </div>
+      <button type="button" id="pdfAll">Historique PDF</button>
+    </div>
+    <div id="sessItems"></div>
+    <p class="hint" id="storeInfo"></p>
+    <div class="row-btns" id="backupRow">
+      <button type="button" id="bkExport">Exporter la sauvegarde</button>
+      <label class="filebtn" for="bkFile">Restaurer une sauvegarde<input type="file" id="bkFile" accept=".json,application/json"></label>
+    </div>
+  </div>
+
+  <div class="sess" id="sessDetail" hidden>
+    <button type="button" class="back" id="back">← Séances</button>
+    <div>
+      <div id="detMeta" class="hint"></div>
+      <h2 id="detTitle" style="color:var(--ink);font-size:22px;text-transform:none;letter-spacing:0"></h2>
+    </div>
+    <div class="panel">
+      <div class="stats" id="detStats"></div>
+      <canvas id="detTgt" width="640" height="640" aria-label="Impacts de la séance"></canvas>
+      <div class="advice" id="detAdvice"></div>
+    </div>
+    <div class="panel">
+      <h2>Feuille de marque</h2>
+      <table><thead><tr><th>Volée</th><th>Flèches</th><th class="n">Total</th><th class="n">Cumul</th></tr></thead><tbody id="detSheet"></tbody></table>
+    </div>
+    <div class="panel" id="detNotesP" hidden><h2>Notes</h2><div id="detNotes" style="white-space:pre-wrap"></div></div>
+    <div class="row-btns">
+      <button type="button" class="btn-main" id="pdfOne">Exporter en PDF</button>
+      <button type="button" class="danger" id="delOne">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="saveSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="saveTitle">
+    <h3 id="saveTitle">Enregistrer la séance</h3>
+    <div><div class="big" id="saveScore"></div><div class="hint" id="saveSub"></div></div>
+    <label class="field" for="saveName">Titre
+      <input type="text" id="saveName" maxlength="80" placeholder="ex. Travail du lâcher">
+    </label>
+    <label class="field" for="saveNotes">Notes
+      <textarea id="saveNotes" maxlength="1000" placeholder="Sensations, réglages du viseur, météo…"></textarea>
+    </label>
+    <div class="row-btns">
+      <button type="button" id="saveCancel">Continuer à tirer</button>
+      <button type="button" class="primary" id="saveOk" style="grid-column:auto;font-size:16px;padding:12px">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(()=>{
+/* ---------- constantes ---------- */
+const COLORS=["#f5f5f2","#f5f5f2","#2a2a2a","#2a2a2a","#2f9fd8","#2f9fd8","#e03a2f","#e03a2f","#f6d32b","#f6d32b"];
+const FORMATS={ // formats de tir officiels, blason complet
+  "s18":{label:"Salle 18 m · 40 cm · 20 × 3 flèches",dist:18,face:400,per:3,ends:20},
+  "s25":{label:"Salle 25 m · 60 cm · 20 × 3 flèches",dist:25,face:600,per:3,ends:20},
+  "e70":{label:"Extérieur 70 m · 122 cm · 12 × 6 flèches",dist:70,face:1220,per:6,ends:12},
+  "e60":{label:"Extérieur 60 m · 122 cm · 12 × 6 flèches",dist:60,face:1220,per:6,ends:12},
+  "e50":{label:"Extérieur 50 m · 122 cm · 12 × 6 flèches",dist:50,face:1220,per:6,ends:12},
+  "e30":{label:"Extérieur 30 m · 80 cm · 12 × 6 flèches",dist:30,face:800,per:6,ends:12}
+};
+const $=id=>document.getElementById(id);
+const fr=(n,d=1)=>n.toFixed(d).replace(".",",");
+const val=s=>s==="X"?10.5:s==="M"?0:+s;
+
+/* ---------- état de la séance en cours (gardé sur ce téléphone) ---------- */
+const S={mode:"train",capture:"auto",fmt:"s18",dist:18,face:400,per:6,compName:"",ends:[[]],started:null,ref:null,demo:null};
+try{const s=JSON.parse(localStorage.getItem("arcspotter")||"null"); if(s&&Array.isArray(s.ends)) Object.assign(S,s,{ref:null,demo:null});}catch(e){}
+const save=()=>{try{const {ref,demo,...k}=S; localStorage.setItem("arcspotter",JSON.stringify(k))}catch(e){}};
+const cur=()=>S.ends[S.ends.length-1];
+const isComp=()=>S.mode==="comp";
+const F=()=>FORMATS[S.fmt]||FORMATS.s18;
+const faceMM=()=>isComp()?F().face:+S.face;
+const perEnd=()=>isComp()?F().per:+S.per;
+const distM=()=>isComp()?F().dist:+S.dist;
+const plannedEnds=()=>isComp()?F().ends:null;
+const arrowsShot=()=>S.ends.flat().length;
+const hasArrows=()=>arrowsShot()>0;
+const compDone=()=>isComp()&&S.ends.length>=F().ends&&cur().length>=F().per;
+
+/* ---------- score World Archery ---------- */
+function score(r){ // r = distance au centre en rayons de blason
+  const R=faceMM()/2, d=Math.max(0,r*R-5.5/2), w=R/10;
+  if(d<=w/2) return {s:"X",p:10};
+  if(d>=R) return {s:"M",p:0};
+  const p=10-Math.floor(d/w); return {s:String(p),p};
+}
+const chipColor=s=>({X:"#f6d32b","10":"#f6d32b","9":"#f6d32b","8":"#e03a2f","7":"#e03a2f","6":"#2f9fd8","5":"#2f9fd8","4":"#2a2a2a","3":"#2a2a2a","2":"#f5f5f2","1":"#f5f5f2",M:"transparent"}[s]);
+const centre=arr=>({x:arr.reduce((s,a)=>s+a.x,0)/arr.length,y:arr.reduce((s,a)=>s+a.y,0)/arr.length});
+function groupText(arr,face){ // décalage du centre de groupement, en cm sur le blason
+  const g=centre(arr), R=face/20, dx=g.x*R, dy=g.y*R;
+  const h=Math.abs(dx)<0.5?"centré":`${fr(Math.abs(dx))} cm à ${dx>0?"droite":"gauche"}`;
+  const v=Math.abs(dy)<0.5?"centré":`${fr(Math.abs(dy))} cm ${dy>0?"en bas":"en haut"}`;
+  return {h,v};
+}
+
+/* ---------- dessin d'un blason avec impacts ---------- */
+function drawFace(cv,ends,opt={}){
+  const x=cv.getContext("2d"), W=cv.width, c=W/2, R=W*0.46, k=W/800;
+  x.clearRect(0,0,W,W);
+  for(let i=0;i<10;i++){x.beginPath(); x.arc(c,c,R*(10-i)/10,0,7); x.fillStyle=COLORS[i]; x.fill(); x.lineWidth=1.5*k; x.strokeStyle=i===2||i===3?"#777":"#222"; x.stroke();}
+  x.beginPath(); x.arc(c,c,R/20,0,7); x.strokeStyle="#222"; x.stroke();
+  const dot=(a,fill,label,rad)=>{const px=c+a.x*R,py=c+a.y*R; x.beginPath(); x.arc(px,py,rad*k,0,7); x.fillStyle=fill; x.fill();
+    x.lineWidth=3*k; x.strokeStyle="#000"; x.stroke(); if(label){x.fillStyle="#000"; x.font=`700 ${22*k}px sans-serif`; x.textAlign="center"; x.textBaseline="middle"; x.fillText(label,px,py+1);}};
+  const mark=getComputedStyle(document.body).getPropertyValue("--mark").trim()||"#d10f5a";
+  const cross=(g,s)=>{x.strokeStyle=mark; x.lineWidth=5*k; const px=c+g.x*R,py=c+g.y*R; x.beginPath(); x.moveTo(px-s*k,py); x.lineTo(px+s*k,py); x.moveTo(px,py-s*k); x.lineTo(px,py+s*k); x.stroke();};
+  if(opt.live){
+    const e=ends[ends.length-1];
+    ends.slice(0,-1).flat().forEach(a=>dot(a,"rgba(140,150,140,.55)",null,11));
+    e.forEach((a,i)=>dot(a,i===e.length-1?"#22d47e":"#ffffff",String(i+1),20));
+    if(e.length>1) cross(centre(e),18);
+  } else {
+    const all=ends.flat(); all.forEach(a=>dot(a,"#ffffff",null,11));
+    if(all.length>1) cross(centre(all),22);
+  }
+}
+
+/* ---------- écran de tir ---------- */
+const tgt=$("tgt");
+function chipRow(el,e,n,newest){
+  el.innerHTML="";
+  for(let i=0;i<n;i++){const d=document.createElement("div"); d.className="chip";
+    if(e[i]){d.textContent=e[i].s; const c=chipColor(e[i].s); d.style.borderColor=c==="transparent"?"var(--line)":c; if(newest&&i===e.length-1)d.classList.add("new");}
+    else{d.textContent="·"; d.classList.add("empty");} el.appendChild(d);}
+}
+function sheetRows(tb,ends){
+  tb.innerHTML=""; let cum=0;
+  ends.forEach((en,i)=>{if(!en.length&&i<ends.length-1)return; const t=en.reduce((s,a)=>s+a.p,0); cum+=t;
+    const tr=document.createElement("tr"); tr.innerHTML=`<td>${i+1}</td><td>${en.map(a=>a.s).sort((a,b)=>val(b)-val(a)).join(" ")||"—"}</td><td class="n">${t}</td><td class="n">${cum}</td>`; tb.appendChild(tr);});
+}
+function mainState(){
+  if(compDone()) return "save";
+  if(cur().length>=perEnd()) return "next";
+  return "shoot";
+}
+function render(newest){
+  document.body.classList.toggle("is-comp",isComp());
+  $("modeChip").textContent=isComp()?"Compétition · "+distM()+" m":"Entraînement · "+distM()+" m";
+  drawFace(tgt,S.ends,{live:true});
+  const e=cur(), n=perEnd();
+  chipRow($("chips"),e,n,newest);
+  $("endTotal").textContent=e.reduce((s,a)=>s+a.p,0);
+  $("endLabel").textContent=isComp()?`Volée ${S.ends.length}/${F().ends} · ${e.length}/${n}`:`Volée ${S.ends.length} · ${e.length}/${n}`;
+  const all=S.ends.flat(), tot=all.reduce((s,a)=>s+a.p,0);
+  let c=`cumul <b>${tot}</b>`;
+  if(all.length){ if(isComp()){const max=F().ends*F().per; c+=` · proj. <b>${Math.round(tot/all.length*max)}</b>`;} else c+=` · moy <b>${fr(tot/all.length)}</b>`; }
+  $("cumul").innerHTML=c;
+  sheetRows($("sheet"),S.ends);
+  if(all.length>=3){const {h,v}=groupText(all,faceMM());
+    $("advice").innerHTML=`<b>${all.length}</b> flèches · moyenne <b>${fr(tot/all.length,2)}</b><br>Centre de groupement : ${h}, ${v}. Le viseur se déplace dans le sens de l'erreur : si le groupe est en bas, descends le viseur.`;
+    $("group").innerHTML=`<b>+</b> groupe : ${h}, ${v}`;
+  } else {$("advice").textContent=""; $("group").textContent="";}
+  const st=mainState();
+  $("mainTxt").textContent= st==="save"?"Enregistrer le résultat" : st==="next"?(isComp()?"Volée suivante":"Volée suivante") : (S.capture==="auto"?(AUTO.on?"■ Arrêter":"▶ Démarrer la volée"):(S.ref?"Photo après la flèche "+(e.length+1):"Photo du blason vide"));
+  document.body.classList.toggle("auto-on",AUTO.on);
+  $("demo").disabled=st!=="shoot";
+  $("nextEnd").disabled=!e.length||compDone();
+  $("finish").disabled=!hasArrows();
+  $("finish").textContent=isComp()?"Clôturer":"Terminer";
+  renderSettings();
+  save();
+}
+function status(msg,err){const s=$("status"); s.textContent=msg; s.classList.toggle("err",!!err);}
+function toast(msg){const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,3200);}
+
+/* ---------- saisie manuelle ---------- */
+tgt.addEventListener("click",ev=>{
+  const r=tgt.getBoundingClientRect(), W=r.width, R=W*0.46;
+  const x=(ev.clientX-r.left-W/2)/R, y=(ev.clientY-r.top-W/2)/R, e=cur();
+  const hit=e.findIndex(a=>Math.hypot(a.x-x,a.y-y)<0.05);
+  if(hit>=0){e.splice(hit,1); status("Flèche retirée."); render(); return;}
+  if(e.length>=perEnd()){status(compDone()?"Compétition terminée. Enregistre le résultat.":"Volée complète. Passe à la volée suivante.",true); return;}
+  if(Math.hypot(x,y)>1.15) return;
+  if(!S.started) S.started=new Date().toISOString();
+  e.push({x,y,...score(Math.hypot(x,y)),manual:true}); status("Flèche ajoutée à la main."); render(true);
+});
+
+/* ---------- traitement d'image ---------- */
+const MAXW=900, N=420, SPAN=1.08; // image normalisée : N px pour [-SPAN, SPAN] rayons
+function toImageData(src){
+  const k=Math.min(1,MAXW/Math.max(src.width,src.height)), w=Math.round(src.width*k), h=Math.round(src.height*k);
+  const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const x=cv.getContext("2d"); x.drawImage(src,0,0,w,h);
+  return {cv, img:x.getImageData(0,0,w,h)};
+}
+function classify(img){ // 1=or, 2=rouge, 3=bleu, 0=autre
+  const {data,width:w,height:h}=img, cls=new Uint8Array(w*h);
+  for(let i=0,p=0;i<w*h;i++,p+=4){const r=data[p]/255,g=data[p+1]/255,b=data[p+2]/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+    if(mx<0.25||d<0.2) continue; const s=d/mx; let hh;
+    if(mx===r) hh=60*(((g-b)/d)%6); else if(mx===g) hh=60*((b-r)/d+2); else hh=60*((r-g)/d+4); if(hh<0)hh+=360;
+    if(hh>=40&&hh<=72&&s>0.66&&mx>0.6) cls[i]=1; else if((hh<=15||hh>=335)&&s>0.5) cls[i]=2; else if(hh>=185&&hh<=250&&s>0.42) cls[i]=3;}
+  return cls;
+}
+function largestComponent(mask,w,h){ // mask: Uint8Array 0/1 -> garde la plus grande composante
+  const lab=new Int32Array(w*h), st=new Int32Array(w*h); let best=0,bestL=0,L=0;
+  for(let i=0;i<w*h;i++){if(!mask[i]||lab[i])continue; L++; let n=0,top=0; st[top++]=i; lab[i]=L;
+    while(top){const j=st[--top]; n++; const x=j%w,y=(j/w)|0;
+      if(x>0&&mask[j-1]&&!lab[j-1]){lab[j-1]=L;st[top++]=j-1} if(x<w-1&&mask[j+1]&&!lab[j+1]){lab[j+1]=L;st[top++]=j+1}
+      if(y>0&&mask[j-w]&&!lab[j-w]){lab[j-w]=L;st[top++]=j-w} if(y<h-1&&mask[j+w]&&!lab[j+w]){lab[j+w]=L;st[top++]=j+w}}
+    if(n>best){best=n;bestL=L}}
+  return {lab,bestL,size:best};
+}
+function fillHoles(mk,w,h){ // tout ce qui n'est pas relié au bord de l'image est intérieur
+  const out=new Uint8Array(w*h).fill(1), st=new Int32Array(w*h); let top=0;
+  const push=i=>{if(!mk[i]&&out[i]){out[i]=0;st[top++]=i}};
+  for(let x=0;x<w;x++){push(x);push((h-1)*w+x)} for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}
+  while(top){const j=st[--top],x=j%w; if(x>0)push(j-1); if(x<w-1)push(j+1); if(j>=w)push(j-w); if(j<w*(h-1))push(j+w);}
+  return out;
+}
+function ellipseOf(pred,w,h){ // ellipse équivalente par moments d'ordre 2
+  let n=0,sx=0,sy=0; for(let i=0;i<w*h;i++) if(pred(i)){n++;sx+=i%w;sy+=(i/w)|0}
+  if(n<200) return null; const cx=sx/n,cy=sy/n; let a=0,b=0,c=0;
+  for(let i=0;i<w*h;i++) if(pred(i)){const dx=i%w-cx,dy=((i/w)|0)-cy; a+=dx*dx;b+=dx*dy;c+=dy*dy}
+  a/=n;b/=n;c/=n; const tr=a+c, det=a*c-b*b, l1=tr/2+Math.sqrt(Math.max(0,tr*tr/4-det)), l2=tr/2-Math.sqrt(Math.max(0,tr*tr/4-det));
+  return {cx,cy,ra:2*Math.sqrt(l1),rb:2*Math.sqrt(Math.max(l2,1e-6)),th:0.5*Math.atan2(2*b,a-c),n};
+}
+function calibrate(img){
+  const w=img.width,h=img.height, cls=classify(img), m=new Uint8Array(w*h);
+  for(let i=0;i<w*h;i++) m[i]=cls[i]?1:0;
+  const {lab,bestL,size}=largestComponent(m,w,h);
+  if(size<w*h*0.01) return null;
+  const inC=i=>lab[i]===bestL;
+  // chaque niveau est rempli (trous bouchés) : une flèche posée sur l'or ne doit pas fausser l'ellipse
+  const lv=[[0.2,i=>inC(i)&&cls[i]===1],[0.4,i=>inC(i)&&(cls[i]===1||cls[i]===2)],[0.6,i=>inC(i)]].map(([f,p])=>{
+    const mk=new Uint8Array(w*h); for(let i=0;i<w*h;i++) mk[i]=p(i)?1:0; const fl=fillHoles(mk,w,h); return [f,ellipseOf(i=>fl[i],w,h)];});
+  const levels=lv.filter(x=>x[1]);
+  if(!levels.length) return null;
+  const big=levels[levels.length-1];
+  let cx=big[1].cx, cy=big[1].cy;
+  if(levels.length>=2){ // la perspective décale le centre des ellipses : on extrapole à rayon 0
+    const f=levels.map(l=>l[0]), mf=f.reduce((s,v)=>s+v,0)/f.length;
+    const fit=key=>{const v=levels.map(l=>l[1][key]),mv=v.reduce((s,x)=>s+x,0)/v.length; let num=0,den=0;
+      f.forEach((fi,i)=>{num+=(fi-mf)*(v[i]-mv);den+=(fi-mf)**2}); return mv-(num/den)*mf;};
+    cx=fit("cx"); cy=fit("cy");}
+  if(big[1].rb/big[1].ra<0.45) return null; // trop écrasé : ce n'est pas le blason
+  return {cx,cy,ra:big[1].ra/big[0],rb:big[1].rb/big[0],th:big[1].th,ell:big[1]};
+}
+function toPixel(cal,u,v){ // coordonnées blason (rayons) -> pixel
+  const c=Math.cos(cal.th),s=Math.sin(cal.th), p=( u*c+v*s)*cal.ra, q=(-u*s+v*c)*cal.rb;
+  return [cal.cx+p*c-q*s, cal.cy+p*s+q*c];
+}
+function normalize(img,cal){ // ré-échantillonne la photo dans le repère du blason
+  const out=new Float32Array(N*N*3), d=img.data, w=img.width, h=img.height;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const u=(x/(N-1)*2-1)*SPAN,v=(y/(N-1)*2-1)*SPAN; const [px,py]=toPixel(cal,u,v);
+    const xi=Math.round(px),yi=Math.round(py), o=(y*N+x)*3;
+    if(xi<1||yi<1||xi>=w-1||yi>=h-1){out[o]=out[o+1]=out[o+2]=-1;continue}
+    for(let k=0;k<3;k++){let acc=0; for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++) acc+=d[((yi+dy)*w+xi+dx)*4+k]; out[o+k]=acc/9;}}
+  return out;
+}
+function detect(A,B,k){
+  const diff=new Float32Array(N*N), mask=new Uint8Array(N*N), vals=[];
+  for(let i=0;i<N*N;i++){const o=i*3; if(A[o]<0||B[o]<0)continue; const x=i%N,y=(i/N)|0,u=(x/(N-1)*2-1)*SPAN,v=(y/(N-1)*2-1)*SPAN;
+    if(u*u+v*v>1.0)continue; diff[i]=Math.max(Math.abs(A[o]-B[o]),Math.abs(A[o+1]-B[o+1]),Math.abs(A[o+2]-B[o+2])); vals.push(diff[i]);}
+  vals.sort((a,b)=>a-b); const thr=Math.max(48,(vals[vals.length>>1]||0)+40);
+  for(let i=0;i<N*N;i++) mask[i]=diff[i]>thr?1:0;
+  // érosion 3x3 : supprime les fins arcs dus au léger décalage entre deux photos (bords des zones)
+  const er=new Uint8Array(N*N);
+  for(let y=1;y<N-1;y++)for(let x=1;x<N-1;x++){const i=y*N+x; if(!mask[i])continue; let ok=1;
+    for(let dy=-1;dy<=1&&ok;dy++)for(let dx=-1;dx<=1;dx++) if(!mask[i+dy*N+dx]){ok=0;break} er[i]=ok;}
+  mask.set(er);
+  // composantes
+  const lab=new Int32Array(N*N), st=new Int32Array(N*N), blobs=[]; let L=0;
+  for(let i=0;i<N*N;i++){if(!mask[i]||lab[i])continue; L++; const px=[]; let top=0; st[top++]=i; lab[i]=L;
+    while(top){const j=st[--top]; px.push(j); const x=j%N;
+      for(const nb of [x>0?j-1:-1,x<N-1?j+1:-1,j-N,j+N]) if(nb>=0&&nb<N*N&&mask[nb]&&!lab[nb]){lab[nb]=L;st[top++]=nb}}
+    if(px.length>=8) blobs.push(px.map(j=>[j%N,(j/N)|0]));}
+  if(!blobs.length) return [];
+  blobs.sort((a,b)=>b.length-a.length);
+  let pts=blobs.slice(0,k).map(b=>mean(b));
+  if(blobs.length<k){ const extra=k-blobs.length+1; pts=pts.slice(1).concat(kmeans(blobs[0],extra)); }
+  return pts.map(([x,y])=>({x:(x/(N-1)*2-1)*SPAN,y:(y/(N-1)*2-1)*SPAN}));
+}
+const mean=b=>[b.reduce((s,p)=>s+p[0],0)/b.length,b.reduce((s,p)=>s+p[1],0)/b.length];
+function kmeans(P,k){let C=[];for(let i=0;i<k;i++)C.push(P[Math.floor((i+0.5)*P.length/k)].slice());
+  for(let it=0;it<25;it++){const G=C.map(()=>[]); P.forEach(p=>{let bi=0,bd=1e9;C.forEach((c,i)=>{const d=(p[0]-c[0])**2+(p[1]-c[1])**2;if(d<bd){bd=d;bi=i}});G[bi].push(p)});
+    C=G.map((g,i)=>g.length?mean(g):C[i]);} return C;}
+
+/* ---------- photo de contrôle ---------- */
+function showPhoto(cv,cal,hits){
+  const pc=$("photo"); pc.width=cv.width; pc.height=cv.height; const x=pc.getContext("2d"); x.drawImage(cv,0,0);
+  const mark=getComputedStyle(document.body).getPropertyValue("--mark").trim()||"#d10f5a";
+  x.lineWidth=3; x.strokeStyle=mark; x.beginPath();
+  for(let t=0;t<=64;t++){const a=t/64*Math.PI*2,[px,py]=toPixel(cal,Math.cos(a),Math.sin(a)); t?x.lineTo(px,py):x.moveTo(px,py)} x.stroke();
+  x.beginPath(); x.moveTo(cal.cx-12,cal.cy); x.lineTo(cal.cx+12,cal.cy); x.moveTo(cal.cx,cal.cy-12); x.lineTo(cal.cx,cal.cy+12); x.stroke();
+  x.strokeStyle="#22d47e"; x.lineWidth=4; hits.forEach(hh=>{const [px,py]=toPixel(cal,hh.x,hh.y); x.beginPath(); x.arc(px,py,16,0,7); x.stroke();});
+  $("photoPanel").hidden=false;
+}
+
+/* ---------- traitement d'une photo ---------- */
+function gray(img){const d=img.data,g=new Float32Array(img.width*img.height); for(let i=0,p=0;i<g.length;i++,p+=4) g[i]=(d[p]+2*d[p+1]+d[p+2])/4; return g;}
+function findShift(ref,cur,cal,w,h){ // recale la nouvelle photo sur la précédente (décalage du téléphone)
+  const pts=[]; for(let u=-0.95;u<=0.95;u+=0.04)for(let v=-0.95;v<=0.95;v+=0.04){if(u*u+v*v>0.9)continue; const [x,y]=toPixel(cal,u,v); pts.push([Math.round(x),Math.round(y)]);}
+  const cost=(dx,dy)=>{let s=0,n=0; for(const [x,y] of pts){const X=x+dx,Y=y+dy; if(X<0||Y<0||X>=w||Y>=h||x<0||y<0||x>=w||y>=h)continue; s+=Math.abs(ref[y*w+x]-cur[Y*w+X]); n++;} return n?s/n:1e9;};
+  let best=[0,0],bc=cost(0,0);
+  for(let dy=-40;dy<=40;dy+=4)for(let dx=-40;dx<=40;dx+=4){const c=cost(dx,dy); if(c<bc){bc=c;best=[dx,dy]}}
+  const [bx,by]=best; for(let dy=by-3;dy<=by+3;dy++)for(let dx=bx-3;dx<=bx+3;dx++){const c=cost(dx,dy); if(c<bc){bc=c;best=[dx,dy]}}
+  return best;
+}
+async function process(source){
+  const {cv,img}=toImageData(source);
+  let cal;
+  if(S.ref && S.ref.w===img.width && S.ref.h===img.height){ // même cadrage : on garde la calibration du blason vide
+    const g=gray(img), [dx,dy]=findShift(S.ref.g,g,S.ref.cal,img.width,img.height);
+    cal={...S.ref.cal,cx:S.ref.cal.cx+dx,cy:S.ref.cal.cy+dy};
+  } else cal=calibrate(img);
+  if(!cal){status("Blason introuvable sur la photo. Cadre le blason entier, avec une lumière franche, puis réessaie. Tu peux aussi toucher le blason virtuel pour noter la flèche à la main.",true); return;}
+  const norm=normalize(img,cal), refNext={norm,cal,g:gray(img),w:img.width,h:img.height};
+  if(!S.ref){S.ref=refNext; showPhoto(cv,cal,[]); status("Blason repéré. Tire ta flèche puis prends la photo suivante, sans bouger le téléphone."); render(); return;}
+  const hits=detect(S.ref.norm,norm,1); S.ref=refNext; showPhoto(cv,cal,hits);
+  if(!hits.length){status("Aucune nouvelle flèche vue. Touche le blason virtuel pour la placer à la main.",true); render(); return;}
+  if(!S.started) S.started=new Date().toISOString();
+  const e=cur(); hits.forEach(hh=>{const r=Math.hypot(hh.x,hh.y); e.push({x:hh.x,y:hh.y,...score(r)})});
+  const last=e[e.length-1];
+  status(`Flèche ${e.length} : ${last.s}${last.s==="M"?" (hors blason)":""}. ${compDone()?"Compétition terminée, enregistre le résultat.":e.length>=perEnd()?"Volée terminée.":"Tire la suivante."}`);
+  render(true);
+}
+$("cam").addEventListener("change",async ev=>{
+  const f=ev.target.files[0]; ev.target.value=""; if(!f)return; status("Analyse en cours…");
+  try{const bmp=await createImageBitmap(f,{imageOrientation:"from-image"}); await process(bmp);}
+  catch(err){try{const im=new Image(); im.src=URL.createObjectURL(f); await im.decode(); await process(im);}catch(e2){status("Impossible de lire cette photo.",true)}}
+});
+
+/* ---------- démo : photos de synthèse ---------- */
+function demoShot(){
+  if(!S.demo) S.demo={arrows:[], base:{rot:(Math.random()-.5)*.15, sx:1, sy:.88+Math.random()*.06}};
+  const W=900,H=700,cv=document.createElement("canvas"); cv.width=W; cv.height=H; const x=cv.getContext("2d");
+  x.fillStyle="#b99d63"; x.fillRect(0,0,W,H);                         // butte en paille
+  let sd=7; const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647; // paille identique d'une photo à l'autre
+  for(let i=0;i<1500;i++){x.fillStyle=`rgba(${120+rnd()*80|0},${100+rnd()*60|0},40,.25)`; x.fillRect(rnd()*W,rnd()*H,8+rnd()*16,1.5);}
+  const b=S.demo.base, jx=(Math.random()-.5)*14, jy=(Math.random()-.5)*14; // léger bougé du téléphone
+  x.save(); x.translate(W/2+jx,H/2+jy); x.rotate(b.rot); x.scale(b.sx,b.sy); x.transform(1,0,0.06,1,0,0);
+  const R=280;
+  for(let i=0;i<10;i++){x.beginPath(); x.arc(0,0,R*(10-i)/10,0,7); x.fillStyle=COLORS[i]; x.fill(); x.lineWidth=1.2; x.strokeStyle=i===2||i===3?"#888":"#222"; x.stroke();}
+  S.demo.arrows.forEach(a=>{const px=a.x*R,py=a.y*R; x.save(); x.translate(px,py);
+    for(const ang of [a.r,a.r+2.09,a.r+4.19]){x.strokeStyle="#7a1fd6"; x.lineWidth=7; x.beginPath(); x.moveTo(0,0); x.lineTo(Math.cos(ang)*20,Math.sin(ang)*20); x.stroke();}
+    x.beginPath(); x.arc(0,0,6,0,7); x.fillStyle="#16e07a"; x.fill(); x.restore();});
+  x.restore();
+  const g=x.getImageData(0,0,W,H); for(let i=0;i<g.data.length;i+=4){const n=(Math.random()-.5)*14; g.data[i]+=n; g.data[i+1]+=n; g.data[i+2]+=n;} x.putImageData(g,0,0);
+  return cv;
+}
+$("demo").addEventListener("click",async()=>{
+  if(!S.ref){S.demo=null; await process(demoShot()); }
+  const ang=Math.random()*Math.PI*2, r=Math.abs(gauss())*0.3;
+  S.demo.arrows.push({x:Math.cos(ang)*r,y:Math.sin(ang)*r,r:Math.random()*6});
+  const truth=score(r); await process(demoShot());
+  const e=cur(); if(e.length){const s=$("status"); s.textContent+=` (vrai score : ${truth.s})`;}
+});
+const gauss=()=>{let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+
+
+
+/* ---------- mode automatique : caméra en direct ---------- */
+// Toutes les 0,5 s : image -> recalage sur la référence -> comparaison.
+// Une flèche est comptée quand une petite zone a changé ET que l'image est redevenue immobile (fin de vibration).
+const AUTO={on:false,stream:null,timer:null,busy:false,prev:null,still:0,lightCount:0,ctx:null,lock:null};
+const video=$("live"), grabCv=document.createElement("canvas"), grabCx=grabCv.getContext("2d",{willReadFrequently:true});
+const camOK=()=>!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
+function grab(){
+  const vw=video.videoWidth, vh=video.videoHeight; if(!vw) return null;
+  const k=Math.min(1,MAXW/Math.max(vw,vh)), w=Math.round(vw*k), h=Math.round(vh*k);
+  if(grabCv.width!==w){grabCv.width=w; grabCv.height=h;}
+  grabCx.drawImage(video,0,0,w,h); return {cv:grabCv,img:grabCx.getImageData(0,0,w,h)};
+}
+async function startCamera(){
+  if(AUTO.stream) return true;
+  try{
+    AUTO.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}});
+    video.srcObject=AUTO.stream; await video.play(); $("liveBox").hidden=false;
+    await new Promise(r=>setTimeout(r,900)); // laisse l'exposition se stabiliser
+    return true;
+  }catch(e){
+    AUTO.stream=null;
+    status(e&&e.name==="NotAllowedError"?"Accès à la caméra refusé. Autorise-le dans les réglages du navigateur, ou passe en mode Photo dans les réglages.":"Caméra indisponible ici. Passe en mode Photo dans les réglages.",true);
+    return false;
+  }
+}
+function stopCamera(){ if(AUTO.stream){AUTO.stream.getTracks().forEach(t=>t.stop()); AUTO.stream=null;} video.srcObject=null; $("liveBox").hidden=true; }
+function beep(f=880,ms=120){ try{const c=AUTO.ctx; if(!c) return; const o=c.createOscillator(), g=c.createGain(); o.frequency.value=f; g.gain.value=.15; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+ms/1000);}catch(e){} try{navigator.vibrate&&navigator.vibrate(80)}catch(e){} }
+function roiStats(A,B){ // part de la zone du blason qui a changé (échantillonnage 1 pixel sur 2)
+  let n=0,ch=0,sa=0,sb=0;
+  for(let y=0;y<N;y+=2)for(let x=0;x<N;x+=2){const u=(x/(N-1)*2-1)*SPAN,v=(y/(N-1)*2-1)*SPAN; if(u*u+v*v>1) continue; const o=(y*N+x)*3; if(A[o]<0||B[o]<0) continue;
+    n++; sa+=A[o]+A[o+1]+A[o+2]; sb+=B[o]+B[o+1]+B[o+2];}
+  const gain=sb>0?sa/sb:1; // compense un changement global de luminosité (nuage, soleil)
+  for(let y=0;y<N;y+=2)for(let x=0;x<N;x+=2){const u=(x/(N-1)*2-1)*SPAN,v=(y/(N-1)*2-1)*SPAN; if(u*u+v*v>1) continue; const o=(y*N+x)*3; if(A[o]<0||B[o]<0) continue;
+    const d=Math.max(Math.abs(A[o]-B[o]*gain),Math.abs(A[o+1]-B[o+1]*gain),Math.abs(A[o+2]-B[o+2]*gain)); if(d>48) ch++;}
+  return {frac:n?ch/n:0,gain};
+}
+function scaled(norm,g){ if(Math.abs(g-1)<0.03) return norm; const o=new Float32Array(norm.length); for(let i=0;i<norm.length;i++) o[i]=norm[i]<0?-1:Math.min(255,norm[i]*g); return o; }
+async function autoStart(){
+  if(!AUTO.ctx){try{AUTO.ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+  if(!await startCamera()) return;
+  try{AUTO.lock=await navigator.wakeLock?.request("screen")}catch(e){}
+  AUTO.on=true; AUTO.prev=null; AUTO.still=0; AUTO.lightCount=0;
+  if(!S.ref) status("Recherche du blason…");
+  AUTO.timer=setInterval(autoTick,500); render();
+}
+function autoStop(msg){
+  AUTO.on=false; clearInterval(AUTO.timer); AUTO.timer=null;
+  try{AUTO.lock&&AUTO.lock.release()}catch(e){} AUTO.lock=null;
+  if(msg) status(msg); render();
+}
+function autoTick(){
+  if(AUTO.busy||!AUTO.on) return; AUTO.busy=true;
+  try{
+    const f=grab(); if(!f) return;
+    const {cv,img}=f;
+    if(!S.ref){ // référence : le blason sans la nouvelle flèche
+      const cal=calibrate(img);
+      if(!cal){status("Blason introuvable : cadre le blason entier, sans contre-jour.",true); return;}
+      S.ref={norm:normalize(img,cal),cal,g:gray(img),w:img.width,h:img.height}; AUTO.prev=S.ref.norm;
+      showPhoto(cv,cal,[]); beep(660,80);
+      status(`Surveillance en cours. Tire la flèche ${cur().length+1}.`); return;
+    }
+    const g=gray(img), [dx,dy]=findShift(S.ref.g,g,S.ref.cal,img.width,img.height);
+    const cal={...S.ref.cal,cx:S.ref.cal.cx+dx,cy:S.ref.cal.cy+dy};
+    const raw=normalize(img,cal), vsRef=roiStats(S.ref.norm,raw), norm=scaled(raw,vsRef.gain);
+    const motion=AUTO.prev?roiStats(AUTO.prev,raw).frac:1; AUTO.prev=raw;
+    AUTO.still=motion<0.0015?AUTO.still+1:0;
+    if(vsRef.frac>0.2){ // quelqu'un devant le blason, ou grand changement de lumière
+      AUTO.lightCount++; if(AUTO.still>=4&&AUTO.lightCount>=4){S.ref={norm:raw,cal,g,w:img.width,h:img.height}; AUTO.lightCount=0; status("Image changée : nouvelle référence prise.");}
+      return;
+    }
+    AUTO.lightCount=0;
+    if(vsRef.frac>0.0008&&AUTO.still>=2){
+      const hits=detect(S.ref.norm,norm,1);
+      S.ref={norm:raw,cal,g,w:img.width,h:img.height};
+      if(!hits.length) return;
+      if(!S.started) S.started=new Date().toISOString();
+      const e=cur(); hits.forEach(hh=>e.push({x:hh.x,y:hh.y,...score(Math.hypot(hh.x,hh.y))}));
+      const last=e[e.length-1]; showPhoto(cv,cal,hits); beep(last.p>=9?1046:784);
+      if(e.length>=perEnd()) autoStop(`Flèche ${e.length} : ${last.s}. ${compDone()?"Compétition terminée, enregistre le résultat.":"Volée terminée."}`);
+      else {status(`Flèche ${e.length} : ${last.s}. Tire la flèche ${e.length+1}.`); render(true);}
+    }
+  }finally{AUTO.busy=false;}
+}
+document.addEventListener("visibilitychange",()=>{ if(document.hidden){ if(AUTO.on) autoStop("Surveillance arrêtée : l'appli est passée en arrière-plan."); stopCamera(); } });
+
+/* ---------- boutons de l'écran de tir ---------- */
+function nextEnd(){
+  const e=cur(); if(!e.length) return;
+  if(isComp()){ while(e.length<F().per) e.push({x:2,y:2,s:"M",p:0,manual:true}); // flèche non relevée = manquée
+    if(S.ends.length>=F().ends){render(); openSave(); return;} }
+  if(AUTO.on) autoStop(); S.ends.push([]); S.ref=null; S.demo=null; $("photoPanel").hidden=true;
+  status(`Volée ${S.ends.length} : photo du blason vide.`); render();
+}
+$("mainBtn").addEventListener("click",ev=>{
+  const st=mainState();
+  if(st==="shoot"){ if(S.capture!=="auto") return; ev.preventDefault(); if(AUTO.on) autoStop("Surveillance arrêtée."); else autoStart(); return; }
+  ev.preventDefault(); if(st==="save") openSave(); else nextEnd();
+});
+$("undo").addEventListener("click",()=>{const e=cur();
+  if(e.length){e.pop(); if(S.demo)S.demo.arrows.pop(); status("Dernière flèche annulée."); render();}
+  else if(S.ends.length>1){S.ends.pop(); status("Retour à la volée précédente."); render();}});
+$("nextEnd").addEventListener("click",nextEnd);
+$("finish").addEventListener("click",()=>{ if(hasArrows()) openSave(); });
+function clearCurrent(){if(AUTO.on) autoStop(); S.ends=[[]]; S.ref=null; S.demo=null; S.started=null; $("photoPanel").hidden=true;}
+let armed=false;
+$("reset").addEventListener("click",ev=>{ if(!hasArrows()){status("Rien à effacer.");return;}
+  if(!armed){armed=true; ev.target.textContent="Confirmer l'effacement"; setTimeout(()=>{armed=false; ev.target.textContent="Effacer la séance en cours"},3000); return;}
+  armed=false; ev.target.textContent="Effacer la séance en cours"; clearCurrent(); status("Séance effacée."); render();});
+
+/* ---------- réglages : mode et format ---------- */
+const fmtSel=$("fmt");
+Object.entries(FORMATS).forEach(([k,f])=>{const o=document.createElement("option"); o.value=k; o.textContent=f.label; fmtSel.appendChild(o);});
+function renderSettings(){
+  $("mTrain").setAttribute("aria-pressed",String(!isComp())); $("mComp").setAttribute("aria-pressed",String(isComp()));
+  $("trainSet").hidden=isComp(); $("compSet").hidden=!isComp();
+  const locked=hasArrows();
+  ["dist","face","perEnd","fmt"].forEach(id=>$(id).disabled=locked);
+  $("dist").value=String(S.dist); $("face").value=String(S.face); $("perEnd").value=String(S.per); fmtSel.value=S.fmt;
+  if(document.activeElement!==$("compName")) $("compName").value=S.compName||"";
+  $("fmtInfo").textContent=isComp()?`${F().ends*F().per} flèches, ${F().ends*F().per*10} points maximum. Une volée passée avec des flèches manquantes les compte M (0).`:"Volées libres, aussi longtemps que tu veux.";
+  $("modeWarn").hidden=true;
+  $("cAuto").setAttribute("aria-pressed",String(S.capture==="auto")); $("cPhoto").setAttribute("aria-pressed",String(S.capture!=="auto"));
+  $("capInfo").textContent=S.capture==="auto"?"Lance la volée, tire : chaque flèche est relevée toute seule. La surveillance s'arrête après la dernière flèche.":"Une photo du blason vide, puis une photo après chaque flèche.";
+}
+function setMode(m){ if(m===S.mode) return;
+  if(hasArrows()){$("modeWarn").hidden=false; return;}
+  S.mode=m; clearCurrent(); render(); status(m==="comp"?"Mode compétition : "+F().label+".":"Mode entraînement.");}
+$("mTrain").addEventListener("click",()=>setMode("train"));
+$("cAuto").addEventListener("click",()=>{ if(!camOK()){status("Pas de caméra en direct dans ce navigateur.",true);return;} S.capture="auto"; S.ref=null; render(); });
+$("cPhoto").addEventListener("click",()=>{ if(AUTO.on) autoStop(); stopCamera(); S.capture="photo"; S.ref=null; render(); });
+$("mComp").addEventListener("click",()=>setMode("comp"));
+$("modeChip").addEventListener("click",()=>{showTab("tir"); $("settings").scrollIntoView({behavior:"smooth"});});
+$("dist").addEventListener("change",e=>{S.dist=+e.target.value; render();});
+$("face").addEventListener("change",e=>{S.face=+e.target.value; render();});
+$("perEnd").addEventListener("change",e=>{S.per=+e.target.value; render();});
+fmtSel.addEventListener("change",e=>{S.fmt=e.target.value; render();});
+$("compName").addEventListener("input",e=>{S.compName=e.target.value; save();});
+
+/* ---------- feuille « Enregistrer la séance » ---------- */
+function openSave(){
+  const all=S.ends.flat(), tot=all.reduce((s,a)=>s+a.p,0);
+  const max=isComp()?F().ends*F().per*10:all.length*10;
+  $("saveTitle").textContent=isComp()?"Enregistrer la compétition":"Enregistrer la séance";
+  $("saveScore").textContent=`${tot} / ${max}`;
+  $("saveSub").textContent=`${all.length} flèches · moyenne ${fr(tot/all.length,2)} · ${all.filter(a=>a.s==="X").length} X · ${all.filter(a=>a.p===10).length} dans le 10`;
+  $("saveName").value=isComp()?(S.compName||""):"";
+  $("saveName").placeholder=isComp()?"ex. Concours salle de Saint-André":"ex. Travail du lâcher";
+  $("saveNotes").value="";
+  $("saveSheet").hidden=false; $("saveName").focus();
+}
+$("saveCancel").addEventListener("click",()=>$("saveSheet").hidden=true);
+$("saveSheet").addEventListener("click",e=>{if(e.target.id==="saveSheet")$("saveSheet").hidden=true;});
+$("saveOk").addEventListener("click",async()=>{
+  const btn=$("saveOk"); btn.disabled=true;
+  const ends=S.ends.filter(e=>e.length).map(e=>e.map(a=>({x:+a.x.toFixed(4),y:+a.y.toFixed(4),s:a.s,p:a.p})));
+  const all=ends.flat(), tot=all.reduce((s,a)=>s+a.p,0);
+  const body={v:1,date:new Date().toISOString(),started:S.started||new Date().toISOString(),mode:S.mode,
+    fmt:isComp()?S.fmt:null,label:isComp()?F().label:`${distM()} m · ${faceMM()/10} cm · volées de ${perEnd()}`,
+    dist:distM(),face:faceMM(),per:perEnd(),plannedEnds:plannedEnds(),ends,total:tot,arrows:all.length,
+    xs:all.filter(a=>a.s==="X").length,tens:all.filter(a=>a.p===10).length,
+    max:isComp()?F().ends*F().per*10:all.length*10,
+    name:$("saveName").value.trim().slice(0,80),notes:$("saveNotes").value.trim().slice(0,1000)};
+  const where=await storeSession(body);
+  btn.disabled=false; $("saveSheet").hidden=true;
+  if(isComp()) S.compName=body.name;
+  clearCurrent(); render();
+  status(where==="db"?"Séance enregistrée. Retrouve-la dans l'onglet Séances.":"Séance enregistrée sur ce téléphone seulement.", where!=="db");
+  toast(`Séance enregistrée : ${tot} / ${body.max}`);
+});
+
+/* ---------- stockage des séances ---------- */
+// Séances : base de l'artefact (privée, liée à ton compte) quand elle est disponible, sinon ce téléphone.
+const LOCAL_KEY="arcspotter_sessions";
+let DB=null, UID=null, dbSessions=[], dbReady="loading";
+let localSessions=[]; try{localSessions=JSON.parse(localStorage.getItem(LOCAL_KEY)||"[]")}catch(e){}
+const saveLocal=()=>{try{localStorage.setItem(LOCAL_KEY,JSON.stringify(localSessions)); return true}catch(e){return false}};
+const sessColl=()=>DB.collection("data/users/"+UID);
+const newId=()=>"s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+async function storeSession(body){
+  const id=newId();
+  if(DB&&UID){ try{ await sessColl().doc(id).set(body); return "db"; }catch(e){} }
+  localSessions.unshift({...body,id,src:"local"}); saveLocal(); renderSessions(); return "local";
+}
+async function deleteSession(s){
+  if(s.src==="db"){ await sessColl().doc(s.id).delete(); }
+  else { localSessions=localSessions.filter(x=>x.id!==s.id); saveLocal(); renderSessions(); }
+}
+(async()=>{
+  await Promise.resolve(); // laisse le script finir de s'initialiser
+  const c=window.claude;
+  if(!c||!c.use){dbReady="off"; renderSessions(); return;}
+  try{
+    const [db,user]=await Promise.all([c.use("db"),c.use("user")]);
+    const id=user?await user.id():null;
+    if(!db||!id){dbReady="off"; renderSessions(); return;}
+    DB=db; UID=id;
+    sessColl().orderBy("date","desc").onSnapshot(snap=>{
+      dbSessions=snap.docs.map(d=>({...d.data(),id:d.id,src:"db"})); dbReady="on"; renderSessions();
+    },()=>{dbReady="off"; renderSessions();});
+  }catch(e){dbReady="off"; renderSessions();}
+})();
+const allSessions=()=>[...dbSessions,...localSessions].sort((a,b)=>b.date<a.date?-1:1);
+
+/* ---------- onglet Séances ---------- */
+let filter="all", openId=null;
+function showTab(t){
+  $("tabTir").setAttribute("aria-selected",String(t==="tir")); $("tabSess").setAttribute("aria-selected",String(t==="sess"));
+  $("viewTir").hidden=t!=="tir"; $("viewSess").hidden=t!=="sess";
+  if(t==="tir") fit(); else {openId=null; renderSessions();}
+  scrollTo(0,0);
+}
+$("tabTir").addEventListener("click",()=>showTab("tir"));
+$("tabSess").addEventListener("click",()=>showTab("sess"));
+document.querySelectorAll(".filters button").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.f;
+  document.querySelectorAll(".filters button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); renderSessions();}));
+const dateFmt=iso=>{const d=new Date(iso); return d.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short",year:"numeric"})+" · "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});};
+const titleOf=s=>s.name||(s.mode==="comp"?"Compétition "+s.dist+" m":"Entraînement "+s.dist+" m");
+function renderSessions(){
+  const list=allSessions();
+  $("sessCount").textContent=list.length?String(list.length):"";
+  if(openId){const s=list.find(x=>x.id===openId); if(s){renderDetail(s); return;} openId=null;}
+  $("sessDetail").hidden=true; $("sessList").hidden=false;
+  const shown=list.filter(s=>filter==="all"||s.mode===filter), box=$("sessItems"); box.innerHTML="";
+  if(dbReady==="loading"&&!list.length){box.innerHTML=`<div class="empty-state">Chargement des séances…</div>`;}
+  else if(!shown.length){box.innerHTML=`<div class="empty-state">${list.length?"Aucune séance dans ce filtre.":"Aucune séance enregistrée.<br>Tire une volée dans l'onglet Tir, puis appuie sur « Terminer »."}</div>`;}
+  shown.forEach(s=>{
+    const b=document.createElement("button"); b.type="button"; b.className="card"; b.style.marginBottom="8px";
+    const t=document.createElement("span"); t.className="t";
+    t.innerHTML=`<span class="badge ${s.mode==="comp"?"comp":"train"}">${s.mode==="comp"?"Compét.":"Entr."}</span>`; t.append(titleOf(s));
+    const m=document.createElement("span"); m.className="meta";
+    m.textContent=`${dateFmt(s.date)} · ${s.arrows} flèches · moy ${fr(s.total/Math.max(1,s.arrows),2)}${s.src==="local"?" · sur ce téléphone":""}`;
+    const sc=document.createElement("span"); sc.className="score"; sc.innerHTML=`${s.total}<small>/ ${s.max}</small>`;
+    b.append(t,sc,m); b.addEventListener("click",()=>{openId=s.id; renderSessions(); scrollTo(0,0);}); box.appendChild(b);
+  });
+  $("pdfAll").disabled=!list.length;
+  $("storeInfo").textContent=dbReady==="on"?"Séances liées à ton compte : tu les retrouves sur tous tes appareils.":dbReady==="off"?"Séances gardées sur ce téléphone. Exporte une sauvegarde de temps en temps : si tu effaces les données du navigateur, elles sont perdues.":"";
+}
+let delArmed=false;
+function renderDetail(s){
+  $("sessList").hidden=true; $("sessDetail").hidden=false;
+  $("detMeta").innerHTML=`<span class="badge ${s.mode==="comp"?"comp":"train"}">${s.mode==="comp"?"Compétition":"Entraînement"}</span>${dateFmt(s.date)}`;
+  $("detTitle").textContent=titleOf(s);
+  const all=s.ends.flat();
+  $("detStats").innerHTML=`<div class="stat"><b>${s.total}</b><span>/ ${s.max}</span></div><div class="stat"><b>${fr(s.total/Math.max(1,all.length),2)}</b><span>moyenne</span></div><div class="stat"><b>${s.xs}</b><span>X</span></div><div class="stat"><b>${s.tens}</b><span>10 + X</span></div>`;
+  drawFace($("detTgt"),s.ends);
+  const real=all.filter(a=>a.s!=="M");
+  if(real.length>=3){const {h,v}=groupText(real,s.face); $("detAdvice").innerHTML=`${s.label}<br><b style="color:var(--mark)">+</b> centre de groupement : ${h}, ${v}`;}
+  else $("detAdvice").textContent=s.label;
+  sheetRows($("detSheet"),s.ends);
+  $("detNotesP").hidden=!s.notes; $("detNotes").textContent=s.notes||"";
+  delArmed=false; $("delOne").textContent="Supprimer";
+}
+$("back").addEventListener("click",()=>{openId=null; renderSessions();});
+$("delOne").addEventListener("click",async()=>{
+  const s=allSessions().find(x=>x.id===openId); if(!s) return;
+  if(!delArmed){delArmed=true; $("delOne").textContent="Confirmer la suppression"; setTimeout(()=>{delArmed=false; $("delOne").textContent="Supprimer"},3000); return;}
+  try{await deleteSession(s); openId=null; renderSessions(); toast("Séance supprimée.");}catch(e){toast("Suppression impossible. Réessaie.");}
+});
+
+/* ---------- export PDF ---------- */
+async function loadPDF(){
+  if(window.jspdf) return window.jspdf.jsPDF;
+  await new Promise((res,rej)=>{const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc);});
+  return window.jspdf.jsPDF;
+}
+const RGB={X:[246,211,43],"10":[246,211,43],"9":[246,211,43],"8":[224,58,47],"7":[224,58,47],"6":[47,159,216],"5":[47,159,216],"4":[42,42,42],"3":[42,42,42],"2":[245,245,242],"1":[245,245,242],M:[215,215,210]};
+const INK=[24,32,27], MUTED=[93,106,97], GREEN=[31,107,71], RUST=[168,54,31];
+const pdfDate=iso=>new Date(iso).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+function pdfHeader(doc,sub){
+  doc.setFillColor(...GREEN); doc.rect(0,0,210,22,"F");
+  doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.text("ArcSpotter",15,14);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text(sub,195,14,{align:"right"});
+}
+function pdfFooter(doc){
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...MUTED);
+    doc.text("ArcSpotter · prototype · généré le "+pdfDate(new Date().toISOString()),15,290); doc.text(`${i} / ${n}`,195,290,{align:"right"});}
+}
+function pdfTarget(doc,cx,cy,r,ends){
+  const ring=[[245,245,242],[245,245,242],[42,42,42],[42,42,42],[47,159,216],[47,159,216],[224,58,47],[224,58,47],[246,211,43],[246,211,43]];
+  for(let i=0;i<10;i++){doc.setFillColor(...ring[i]); doc.setDrawColor(i===2||i===3?120:40); doc.setLineWidth(0.15); doc.circle(cx,cy,r*(10-i)/10,"FD");}
+  doc.setDrawColor(40); doc.circle(cx,cy,r/20,"S");
+  const all=ends.flat().filter(a=>a.s!=="M");
+  doc.setLineWidth(0.25); doc.setDrawColor(0); doc.setFillColor(255,255,255);
+  all.forEach(a=>doc.circle(cx+a.x*r,cy+a.y*r,1.1,"FD"));
+  if(all.length>1){const g=centre(all), x=cx+g.x*r, y=cy+g.y*r; doc.setDrawColor(209,15,90); doc.setLineWidth(0.7); doc.line(x-3,y,x+3,y); doc.line(x,y-3,x,y+3);}
+}
+function pdfSession(doc,s,first){
+  if(!first) doc.addPage();
+  pdfHeader(doc,"Feuille de marque");
+  const comp=s.mode==="comp", all=s.ends.flat();
+  let y=34;
+  doc.setTextColor(...(comp?RUST:GREEN)); doc.setFont("helvetica","bold"); doc.setFontSize(9);
+  doc.text(comp?"COMPÉTITION":"ENTRAÎNEMENT",15,y);
+  doc.setTextColor(...INK); doc.setFontSize(16); doc.text(titleOf(s),15,y+7);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...MUTED);
+  doc.text(`${dateFmt(s.date)} · ${s.label}`,15,y+13);
+  // chiffres clés
+  y=56; const boxes=[["Score",`${s.total} / ${s.max}`],["Moyenne",fr(s.total/Math.max(1,all.length),2)],["X",String(s.xs)],["10 + X",String(s.tens)],["Flèches",String(all.length)]];
+  boxes.forEach(([k,v],i)=>{const x=15+i*36.4; doc.setDrawColor(217,221,210); doc.setLineWidth(0.3); doc.roundedRect(x,y,33.4,17,2,2,"S");
+    doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text(k.toUpperCase(),x+3,y+5.5);
+    doc.setFont("helvetica","bold"); doc.setFontSize(i===0?13:14); doc.setTextColor(...INK); doc.text(v,x+3,y+13); doc.setFont("helvetica","normal");});
+  // feuille de marque
+  y=84; const per=s.per, cw=Math.min(11,62/per), x0=15, colEnd=x0+12, colTot=colEnd+per*cw+2, colCum=colTot+16, rh=6.4;
+  doc.setFontSize(8); doc.setTextColor(...MUTED);
+  doc.text("VOLÉE",x0,y); doc.text("FLÈCHES",colEnd,y); doc.text("TOTAL",colTot+14,y,{align:"right"}); doc.text("CUMUL",colCum+14,y,{align:"right"});
+  y+=2.5; let cum=0;
+  s.ends.forEach((en,i)=>{
+    if(y>262){doc.addPage(); pdfHeader(doc,"Feuille de marque (suite)"); y=34;}
+    const t=en.reduce((a,b)=>a+b.p,0); cum+=t;
+    doc.setFontSize(10); doc.setTextColor(...INK); doc.setFont("helvetica","normal"); doc.text(String(i+1),x0+2,y+4.5);
+    [...en].sort((a,b)=>val(b.s)-val(a.s)).forEach((a,j)=>{const c=RGB[a.s]||RGB.M, x=colEnd+j*cw;
+      doc.setFillColor(...c); doc.setDrawColor(190); doc.setLineWidth(0.15); doc.rect(x,y,cw-0.8,rh-0.8,"FD");
+      const dark=["8","7","6","5","4","3"].includes(a.s); doc.setTextColor(...(dark?[255,255,255]:INK)); doc.setFont("helvetica","bold"); doc.setFontSize(9);
+      doc.text(a.s,x+(cw-0.8)/2,y+4.3,{align:"center"});});
+    doc.setTextColor(...INK); doc.setFont("helvetica","bold"); doc.setFontSize(10);
+    doc.text(String(t),colTot+14,y+4.5,{align:"right"}); doc.setFont("helvetica","normal"); doc.text(String(cum),colCum+14,y+4.5,{align:"right"});
+    doc.setDrawColor(230); doc.line(x0,y+rh,colCum+14,y+rh); y+=rh;
+  });
+  const tableEnd=y;
+  // blason
+  const r=30, cx=165, cy=84+r+2; pdfTarget(doc,cx,cy,r,s.ends);
+  doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text("Impacts (+ : centre de groupement)",cx,cy+r+6,{align:"center"});
+  const real=all.filter(a=>a.s!=="M"); let ty=cy+r+12;
+  if(real.length>=3){const {h,v}=groupText(real,s.face); doc.setFontSize(9); doc.setTextColor(...INK);
+    doc.text(doc.splitTextToSize(`Groupement : ${h}, ${v}.`,58),cx-29,ty); ty+=10;}
+  // répartition des points
+  const counts={}; all.forEach(a=>counts[a.s]=(counts[a.s]||0)+1);
+  doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text("RÉPARTITION",cx-29,ty); ty+=4;
+  ["X","10","9","8","7","6","5","4","3","2","1","M"].filter(k=>counts[k]).forEach(k=>{const w=Math.max(0.5,40*counts[k]/all.length);
+    doc.setFontSize(8); doc.setTextColor(...INK); doc.text(k,cx-29,ty+2.6); doc.setFillColor(...(RGB[k]||RGB.M)); doc.setDrawColor(170); doc.rect(cx-23,ty,w,3.2,"FD");
+    doc.text(String(counts[k]),cx-21+w,ty+2.6); ty+=4.4;});
+  // notes
+  if(s.notes){let ny=Math.max(tableEnd,ty)+8; if(ny>250){doc.addPage(); pdfHeader(doc,"Feuille de marque (suite)"); ny=34;}
+    doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text("NOTES",15,ny);
+    doc.setFontSize(10); doc.setTextColor(...INK); doc.text(doc.splitTextToSize(s.notes,180),15,ny+5);}
+}
+function pdfHistory(doc,list){
+  pdfHeader(doc,"Historique des séances");
+  let y=34; doc.setTextColor(...INK); doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.text("Historique",15,y);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...MUTED);
+  const nArrows=list.reduce((a,s)=>a+s.arrows,0), nComp=list.filter(s=>s.mode==="comp").length;
+  doc.text(`${list.length} séances (${nComp} compétitions) · ${nArrows} flèches · du ${pdfDate(list[list.length-1].date)} au ${pdfDate(list[0].date)}`,15,y+6);
+  // courbe de la moyenne par flèche
+  const pts=[...list].reverse().slice(-40), gx=25, gy=50, gw=170, gh=55;
+  const avgs=pts.map(s=>s.total/Math.max(1,s.arrows));
+  let lo=Math.floor(Math.min(...avgs)), hi=Math.ceil(Math.max(...avgs)); if(hi-lo<2){lo=Math.max(0,hi-2);} if(hi===lo)hi=lo+1;
+  doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text("MOYENNE PAR FLÈCHE",15,gy-3);
+  doc.setDrawColor(225); doc.setLineWidth(0.2);
+  for(let v=lo;v<=hi;v++){const yy=gy+gh-(v-lo)/(hi-lo)*gh; doc.line(gx,yy,gx+gw,yy); doc.text(String(v),gx-3,yy+1,{align:"right"});}
+  const px=i=>pts.length===1?gx+gw/2:gx+i*gw/(pts.length-1), py=v=>gy+gh-(v-lo)/(hi-lo)*gh;
+  doc.setDrawColor(...MUTED); doc.setLineWidth(0.4);
+  for(let i=1;i<pts.length;i++) doc.line(px(i-1),py(avgs[i-1]),px(i),py(avgs[i]));
+  pts.forEach((s,i)=>{doc.setFillColor(...(s.mode==="comp"?RUST:GREEN)); doc.circle(px(i),py(avgs[i]),1.2,"F");});
+  doc.setFillColor(...GREEN); doc.circle(gx+2,gy+gh+7,1.2,"F"); doc.setTextColor(...INK); doc.text("Entraînement",gx+5,gy+gh+8);
+  doc.setFillColor(...RUST); doc.circle(gx+35,gy+gh+7,1.2,"F"); doc.text("Compétition",gx+38,gy+gh+8);
+  // tableau
+  y=gy+gh+20; const cols=[["Date",15],["Mode",38],["Séance",62],["Format",112],["Flèches",160,"r"],["Score",180,"r"],["Moy.",195,"r"]];
+  const head=()=>{doc.setFontSize(8); doc.setTextColor(...MUTED); cols.forEach(([t,x,a])=>doc.text(t.toUpperCase(),x,y,a?{align:"right"}:undefined)); y+=2; doc.setDrawColor(200); doc.line(15,y,195,y); y+=5;};
+  head();
+  list.forEach(s=>{ if(y>280){doc.addPage(); pdfHeader(doc,"Historique des séances"); y=34; head();}
+    doc.setFontSize(9); doc.setTextColor(...INK);
+    doc.text(pdfDate(s.date),15,y); doc.setTextColor(...(s.mode==="comp"?RUST:GREEN)); doc.text(s.mode==="comp"?"Compétition":"Entraînement",38,y);
+    doc.setTextColor(...INK); doc.text(doc.splitTextToSize(titleOf(s),48)[0],62,y);
+    doc.text(`${s.dist} m · ${s.face/10} cm`,112,y); doc.text(String(s.arrows),160,y,{align:"right"});
+    doc.setFont("helvetica","bold"); doc.text(`${s.total}/${s.max}`,180,y,{align:"right"}); doc.setFont("helvetica","normal");
+    doc.text(fr(s.total/Math.max(1,s.arrows),2),195,y,{align:"right"});
+    doc.setDrawColor(235); doc.line(15,y+2,195,y+2); y+=7;});
+}
+const slug=t=>t.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
+async function saveFile(name,blob){
+  const dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null;
+  if(dl){await dl.save({filename:name,data:blob}); return;}
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+$("bkExport").addEventListener("click",async()=>{const list=allSessions(); if(!list.length){toast("Aucune séance à sauvegarder.");return;}
+  try{await saveFile(`arcspotter-sauvegarde-${new Date().toISOString().slice(0,10)}.json`,new Blob([JSON.stringify({app:"arcspotter",v:1,sessions:list},null,1)],{type:"application/json"})); toast("Sauvegarde exportée.");}catch(e){toast("Export annulé.");}});
+$("bkFile").addEventListener("change",async ev=>{const f=ev.target.files[0]; ev.target.value=""; if(!f) return;
+  try{const d=JSON.parse(await f.text()); const arr=Array.isArray(d)?d:d.sessions; if(!Array.isArray(arr)) throw 0;
+    const have=new Set(allSessions().map(s=>s.id)); let n=0;
+    arr.forEach(s=>{ if(s&&s.id&&Array.isArray(s.ends)&&!have.has(s.id)){localSessions.push({...s,src:"local"}); n++;} });
+    localSessions.sort((a,b)=>b.date<a.date?-1:1); saveLocal(); renderSessions(); toast(n?`${n} séance(s) restaurée(s).`:"Rien de nouveau dans cette sauvegarde.");
+  }catch(e){toast("Fichier de sauvegarde illisible.");}});
+async function exportPDF(kind,btn){
+  const old=btn.textContent; btn.disabled=true; btn.textContent="Préparation…";
+  try{
+    const jsPDF=await loadPDF(), doc=new jsPDF({unit:"mm",format:"a4"}); let name;
+    if(kind==="one"){const s=allSessions().find(x=>x.id===openId); if(!s) return; pdfSession(doc,s,true);
+      name=`arcspotter-${s.date.slice(0,10)}-${slug(titleOf(s))}.pdf`;}
+    else{const list=allSessions(); pdfHistory(doc,list); name=`arcspotter-historique-${new Date().toISOString().slice(0,10)}.pdf`;}
+    pdfFooter(doc);
+    const blob=doc.output("blob");
+    await saveFile(name,blob); toast("PDF enregistré.");
+  }catch(e){
+    const code=e&&e.code;
+    toast(code==="declined"?"Export annulé.":code==="rate_limited"?"Une fenêtre d'enregistrement est déjà ouverte.":!window.jspdf?"Impossible de charger le module PDF. Vérifie la connexion.":"Export impossible ici.");
+  }finally{btn.disabled=false; btn.textContent=old;}
+}
+$("pdfOne").addEventListener("click",e=>exportPDF("one",e.currentTarget));
+$("pdfAll").addEventListener("click",e=>exportPDF("all",e.currentTarget));
+
+/* ---------- mise en page ---------- */
+function fit(){const st=$("stage"); if(!st.clientWidth) return; const sz=Math.max(120,Math.floor(Math.min(st.clientWidth,st.clientHeight))); tgt.style.width=tgt.style.height=sz+"px";}
+addEventListener("resize",fit); fit();
+if(!camOK()) S.capture="photo";
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(()=>{});
+render(); renderSessions();
+})();
+</script>
+
+</body>
+</html>
